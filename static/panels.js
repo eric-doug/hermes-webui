@@ -800,12 +800,19 @@ async function _loadRunContent(jobId, filename, runId){
     const expanded = _cronExpansionGet(_cronRunExpandKey(jobId, filename));
     const output = expanded ? (data.content || data.snippet || '') : (data.snippet || data.content || '');
     body.classList.toggle('expanded', expanded);
-    // Render markdown content using the same renderer as chat messages
+    const rawUrl = `/api/crons/output/raw?job_id=${encodeURIComponent(jobId)}&file=${encodeURIComponent(filename)}&download=1`;
+    const actions = document.createElement('div');
+    actions.className = 'detail-run-body-actions';
+    actions.innerHTML = `<a class="detail-run-download" href="${rawUrl}" download="${esc(filename)}">Download raw</a>`;
+    const content = document.createElement('div');
     if (typeof renderMd === 'function') {
-      body.innerHTML = renderMd(output);
+      content.innerHTML = renderMd(output);
     } else {
-      body.textContent = output;
+      content.textContent = output;
     }
+    body.innerHTML = '';
+    body.appendChild(actions);
+    body.appendChild(content);
     const usageStrip = _formatCronRunUsageStrip(data.usage);
     if (usageStrip) {
       const usage = document.createElement('div');
