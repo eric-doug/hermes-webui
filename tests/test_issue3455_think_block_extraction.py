@@ -152,3 +152,44 @@ def test_think_only_message(driver):
     r = _split(driver, "<think>only thinking</think>")
     assert r["content"] == ""
     assert r["reasoning"] == "only thinking"
+
+
+# ── Backend parity: api/streaming._split_thinking_from_content ──────────────
+# #3455 review (Codex): the split must also run server-side before s.save() so
+# the PERSISTED session file is compacted (the client-only split left the saved
+# file bloated). The backend helper must match the JS semantics exactly.
+
+class TestBackendThinkSplitParity:
+    def _sp(self, raw, existing=""):
+        from api.streaming import _split_thinking_from_content
+        return _split_thinking_from_content(raw, existing)
+
+    def test_plain_untouched(self):
+        assert self._sp("Hello world") == ("Hello world", "")
+
+    def test_leading_extracted(self):
+        assert self._sp("<think>r</think>The answer") == ("The answer", "r")
+
+    def test_mid_body_code_block_preserved(self):
+        raw = "```html\n<think>visible literal</think>\n```"
+        content, reasoning = self._sp(raw)
+        assert content == raw
+        assert reasoning == ""
+
+    def test_unclosed_left_intact(self):
+        assert self._sp("<think>still...") == ("<think>still...", "")
+
+    def test_existing_reasoning_merged(self):
+        assert self._sp("<think>new</think>ans", "prior") == ("ans", "prior\n\nnew")
+
+    def test_single_leading_block_only(self):
+        assert self._sp("<think>a</think><think>b</think>end") == ("<think>b</think>end", "a")
+
+    def test_empty(self):
+        assert self._sp("") == ("", "")
+
+    def test_none_content(self):
+        # Defensive: non-string content must not crash.
+        content, reasoning = self._sp(None)
+        assert content in (None, "")
+        assert reasoning == ""
